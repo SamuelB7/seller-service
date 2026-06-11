@@ -1,0 +1,214 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum SellerStatus {
+  DRAFT
+  PENDING_REVIEW
+  ACTIVE
+  REJECTED
+  SUSPENDED
+}
+
+enum SellerApplicationStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum SellerDocumentStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum SellerTeamRole {
+  OWNER
+  MANAGER
+  OPERATIONS
+  FINANCE
+}
+
+enum SellerTeamMemberStatus {
+  INVITED
+  ACTIVE
+  DISABLED
+}
+
+enum PolicyWarningSeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model Seller {
+  id                  String                      @id @default(cuid())
+  authUserId          String                      @unique
+  email               String
+  status              SellerStatus                @default(DRAFT)
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
+  application         SellerApplication?
+  storeProfile        SellerStoreProfile?
+  documents           SellerDocument[]
+  payoutAccount       SellerPayoutAccount?
+  teamMembers         SellerTeamMember[]
+  fulfillmentSettings SellerFulfillmentSettings?
+  statusHistory       SellerStatusHistory[]
+  policyWarnings      SellerPolicyWarning[]
+
+  @@index([email])
+  @@index([status])
+  @@map("sellers")
+}
+
+model SellerApplication {
+  id              String                  @id @default(cuid())
+  sellerId        String                  @unique
+  legalName       String
+  businessName    String
+  taxId           String
+  businessType    String
+  status          SellerApplicationStatus @default(SUBMITTED)
+  submittedAt     DateTime                @default(now())
+  reviewedAt      DateTime?
+  rejectionReason String?
+  seller          Seller                  @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("seller_applications")
+}
+
+model SellerStoreProfile {
+  id           String   @id @default(cuid())
+  sellerId     String   @unique
+  storeName    String
+  description  String?
+  logoUrl      String?
+  bannerUrl    String?
+  supportEmail String?
+  returnPolicy String?
+  shippingPolicy String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  seller       Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@map("seller_store_profiles")
+}
+
+model SellerDocument {
+  id            String               @id @default(cuid())
+  sellerId      String
+  documentType  String
+  fileReference String
+  status        SellerDocumentStatus @default(SUBMITTED)
+  reviewNotes   String?
+  submittedAt   DateTime             @default(now())
+  reviewedAt    DateTime?
+  seller        Seller               @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@index([sellerId])
+  @@index([status])
+  @@map("seller_documents")
+}
+
+model SellerPayoutAccount {
+  id                 String   @id @default(cuid())
+  sellerId           String   @unique
+  accountHolderName  String
+  bankName           String
+  bankCode           String?
+  branchNumber       String?
+  accountNumberLast4 String
+  accountType        String
+  externalAccountRef String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  seller             Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@map("seller_payout_accounts")
+}
+
+model SellerTeamMember {
+  id         String                 @id @default(cuid())
+  sellerId   String
+  authUserId String?
+  email      String
+  name       String?
+  role       SellerTeamRole
+  status     SellerTeamMemberStatus @default(INVITED)
+  invitedAt  DateTime               @default(now())
+  updatedAt  DateTime               @updatedAt
+  seller     Seller                 @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@unique([sellerId, email])
+  @@index([sellerId])
+  @@map("seller_team_members")
+}
+
+model SellerFulfillmentSettings {
+  id             String   @id @default(cuid())
+  sellerId       String   @unique
+  originCountry  String
+  originState    String
+  originCity     String
+  originPostalCode String
+  handlingTimeDays Int     @default(2)
+  pickupEnabled  Boolean  @default(false)
+  dropOffEnabled Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  seller         Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@map("seller_fulfillment_settings")
+}
+
+model SellerStatusHistory {
+  id          String       @id @default(cuid())
+  sellerId    String
+  fromStatus  SellerStatus?
+  toStatus    SellerStatus
+  actorUserId String?
+  reason      String?
+  createdAt   DateTime     @default(now())
+  seller      Seller       @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@index([sellerId])
+  @@index([toStatus])
+  @@map("seller_status_history")
+}
+
+model SellerPolicyWarning {
+  id        String                @id @default(cuid())
+  sellerId  String
+  code      String
+  message   String
+  severity  PolicyWarningSeverity @default(LOW)
+  resolvedAt DateTime?
+  createdAt DateTime              @default(now())
+  seller    Seller                @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@index([sellerId])
+  @@index([severity])
+  @@map("seller_policy_warnings")
+}
+
+model OutboxEvent {
+  id          String    @id @default(cuid())
+  topic       String
+  type        String
+  payload     Json
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([topic])
+  @@index([publishedAt])
+  @@map("outbox_events")
+}
+
